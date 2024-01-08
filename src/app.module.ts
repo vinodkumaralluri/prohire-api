@@ -6,7 +6,7 @@ import { GlobalExceptionFilter } from './core/global-exception.filter';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CompanyModule } from './modules/company/company.module';
-import { CollegesModule } from './modules/colleges/colleges.module';
+import { CollegeModule } from './modules/college/college.module';
 import { StudentsModule } from './modules/students/students.module';
 import { UsersModule } from './modules/users/users.module';
 import { CourseModule } from './modules/course/course.module';
@@ -25,7 +25,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     MongooseModule.forRoot(process.env.MONGO_URI),
     AutoIncrementModule,
     CompanyModule, 
-    CollegesModule, 
+    CollegeModule, 
     StudentsModule, 
     UsersModule, 
     CourseModule, 

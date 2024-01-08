@@ -4,18 +4,15 @@ import { ModuleType } from '../../../enums/module-type.enum';
 import { PermissionType } from '../../../enums/permission.enum';
 
 export class PermissionDto {
-  @ApiProperty({ example: 'RO1', description: 'Company Role Id' })
-  @IsNotEmpty()
-  role_id: string;
 
-  @ApiProperty({ example: 'Company', description: 'Module' })
+  @ApiProperty({ example: 'Tasks', description: 'Module' })
   @IsEnum(ModuleType)
   @IsNotEmpty()
   module: ModuleType;
 
-  @ApiProperty({ example: 'view', description: 'Permission of the Module' })
+  @ApiProperty({ example: 'view', description: 'Permissions of the Module' })
   @IsEnum(PermissionType)
   @IsNotEmpty()
-  permission: PermissionType;
+  permissions: any[];
 
 }

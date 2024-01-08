@@ -23,13 +23,13 @@ export class UsersService {
     ) { }
 
     // Query User by Filter
-    async queryOne(filter: any) {
+    async queryUser(filter: any) {
         const user = await this.userModel.findOne(filter).exec();
         return user;
     }
 
     async findByUserId(user_id: string) {
-        const user = this.queryOne({ user_id: user_id, status: 1 });
+        const user = this.queryUser({ user_id: user_id, status: 1 });
         if (!user) {
             throw new NotFoundException('User not found.');
         }

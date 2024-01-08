@@ -3,6 +3,27 @@ import { Document } from 'mongoose';
 import { ModuleType } from '../../../enums/module-type.enum';
 import { PermissionType } from '../../../enums/permission.enum';
 
+export type ModulePermissionsDocument = ModulePermissions & Document;
+@Schema()
+export class ModulePermissions {
+  @Prop({
+    type: String,
+    enum: Object.values(ModuleType),
+    required: true
+  })
+  module: ModuleType;
+
+  @Prop({
+    type: Array,
+    enum: Object.values(PermissionType),
+    required: true,
+  })
+  permissions: PermissionType[];  
+
+}
+
+const ModulePermissionsSchema = SchemaFactory.createForClass(ModulePermissions);
+
 export type PermissionDocument = Permission & Document;
 
 @Schema()
@@ -14,16 +35,9 @@ export class Permission {
   role_id: string;
 
   @Prop({
-    type: String,
-    enum: Object.values(ModuleType),
+    type: [ModulePermissionsSchema],
   })
-  module: ModuleType;
-
-  @Prop({
-    type: String,
-    enum: Object.values(PermissionType),
-  })
-  permission: PermissionType;  
+  module_permissions: ModulePermissionsDocument[];
 
   @Prop({ required: true })
   created_at: string;

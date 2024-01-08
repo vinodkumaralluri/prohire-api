@@ -29,7 +29,7 @@ export class User {
   is2FaEnabled: boolean;
 
   @Prop()
-  otp: string;
+  otp: number;
 
   @Prop()
   otpExpiry: string;

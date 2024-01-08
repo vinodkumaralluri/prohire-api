@@ -5,27 +5,38 @@ import {
   NotImplementedException,
   UnauthorizedException,
 } from '@nestjs/common';
+
+// mongoose
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { InjectConnection } from '@nestjs/mongoose';
-import { SignUpDto } from './dto/signup.dto';
-import { CompanyDto } from '../company/dto/company.dto';
+import * as mongoose from 'mongoose';
+
+// Schemas
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Company, CompanyDocument } from '../company/schemas/company.schema';
 import { Role, RoleDocument } from '../role/schemas/role.schema';
 import { Permission, PermissionDocument } from '../role/schemas/permission.schema';
-import * as bcrypt from 'bcrypt';
-import { UserService } from '../users/users.service';
-import { JwtService } from '@nestjs/jwt';
+
+// Dto
+import { SignUpDto } from './dto/signup.dto';
+import { CompanyDto } from '../company/dto/company.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { AppUtils } from '../../utils/app.utils';
-import { AutoIncrementService } from '../auto-increment/auto-increment.service';
+
+// Enum
 import { AutoIncrementEnum } from '../auto-increment/auto-increment.enum';
 import { UserType } from 'src/enums/user-type.enum';
-import { RoleService } from '../role/role.service';
 import { ModuleType } from 'src/enums/module-type.enum';
 import { PermissionType } from 'src/enums/permission.enum';
-import * as mongoose from 'mongoose';
+
+// Services
+import { UsersService } from '../users/users.service';
+import { AutoIncrementService } from '../auto-increment/auto-increment.service';
+import { RoleService } from '../role/role.service';
+import { JwtService } from '@nestjs/jwt';
+
+import * as bcrypt from 'bcrypt';
+import { AppUtils } from '../../utils/app.utils';
 
 @Injectable()
 export class AuthService {
@@ -35,10 +46,10 @@ export class AuthService {
     @InjectModel(Role.name) private roleModel: Model<RoleDocument>,
     @InjectModel(Permission.name) private permissionModel: Model<PermissionDocument>,
     @InjectConnection() private readonly connection: mongoose.Connection,
-    private userService: UserService,
-    private roleService: RoleService,
-    private jwtService: JwtService,
-    private autoIncrementService: AutoIncrementService,
+    private userservice: UsersService,
+    private roleservice: RoleService,
+    private jwtservice: JwtService,
+    private autoIncrementservice: AutoIncrementService,
   ) { }
 
   // User Signup API
@@ -49,7 +60,7 @@ export class AuthService {
     transactionSession.startTransaction();
 
     // Check for the User Existence
-    const existingUser = await this.userService.queryUser({
+    const existingUser = await this.userservice.queryUser({
       $or: [
         { email: adminDto.email },
         { phone_number: adminDto.phone_number },
@@ -66,21 +77,22 @@ export class AuthService {
         );
       }
     }
+
     // Create User Id
-    const user_id = await this.autoIncrementService.getNextSequence(
+    const user_id = await this.autoIncrementservice.getNextSequence(
       AutoIncrementEnum.USER,
     );
+
     // Create User Schema
     const user = new User();
     user.user_id = user_id;
     user.email = adminDto.email;
     user.phone_number = adminDto.phone_number;
     user.user_type = UserType.SuperAdmin;
-    user.password = 'Admin@123',
     user.password = await AppUtils.getEncryptedPassword('Admin@123');
     user.is2FaEnabled = false,
-    user.otp = '',
-    user.otpExpiry = '',
+    user.otp = AppUtils.generateOtp();
+    user.otpExpiry = AppUtils.getExpiryDate();
     user.last_login_date = '',
     user.created_at = AppUtils.getIsoUtcMoment();
     user.updated_at = AppUtils.getIsoUtcMoment();
@@ -89,70 +101,47 @@ export class AuthService {
 
     try {
       // Create User in the Db
-      await this.userModel.create([user], {transactionSession});
+      await this.userModel.create([user], { transactionSession });
       // Check for Company Name
       const companycheck = await this.companyModel
-        .findOne({ company_name: 'ProService', status: 1 })
+        .findOne({ company_name: 'ProHire', status: 1 })
         .exec();
       if (companycheck) {
         throw new BadRequestException('Company already exists');
       }
+
       // Create Company Id
-      const company_id = await this.autoIncrementService.getNextSequence(
+      const company_id = await this.autoIncrementservice.getNextSequence(
         AutoIncrementEnum.COMPANY,
         transactionSession,
       );
+
       const company = new Company();
       company.company_id = company_id;
       company.user_id = user_id;
-      company.company_name = adminDto.company_name;
-      company.email = adminDto.company_email;
-      company.contact_number = adminDto.contact_number;
-      company.toll_free = adminDto.toll_free;
-      company.owner_first_name = adminDto.first_name;
-      company.owner_last_name = adminDto.last_name;
-      company.owner_phone_number = adminDto.phone_number;
-      company.owner_email = adminDto.email;
-      company.owner_gender = adminDto.gender;
-      company.owner_dob = adminDto.dob;
-      company.head_office = adminDto.head_office;
-      company.address = adminDto.address;
-      company.city = adminDto.city;
-      company.state = adminDto.state;
-      company.pincode = adminDto.pincode;
+      company.name = adminDto.name;
+      company.email = adminDto.email;
+      company.phone_number = adminDto.phone_number;
       company.created_at = AppUtils.getIsoUtcMoment();
       company.updated_at = AppUtils.getIsoUtcMoment();
       company.created_by = user_id;
       company.updated_by = user_id;
 
       try {
-        await this.companyModel.create([company], {transactionSession});
+        await this.companyModel.create([company], { transactionSession });
         // Create Role for the Super Admin
         const SuperAdmin_role = {
           entity_id: company_id,
           role: UserType.SuperAdmin,
         }
-        const Companyuserrole = await this.roleService.addRole(SuperAdmin_role, user_id, transactionSession);
-        if (Companyuserrole.status === true) {
-          const permissions = [
-            { role_id: Companyuserrole.data, module: ModuleType.Company, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Complaint, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Customer, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Employee, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Item, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Model, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Product, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Purchase, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Rating, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Review, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.ServiceCenter, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Store, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Task, permission: PermissionType.Edit },
-            { role_id: Companyuserrole.data, module: ModuleType.Warranty, permission: PermissionType.Edit }
-          ];
+        const SuperAdminrole = await this.roleservice.addRole(SuperAdmin_role, user_id, transactionSession);
+
+        // Add Permissions to the Super Admin
+        if (SuperAdminrole.status === true) {
+          var permissions = await this.roleservice.superAdmin_permissions();
           try {
             for (let i = 0; i < permissions.length; i++) {
-              const permission = await this.roleService.addPermission(permissions[i], user_id, transactionSession);
+              const permission = await this.roleservice.addPermission(permissions[i], user_id, transactionSession);
               if (permission.status === false) {
                 return { status: false, user_id: user_id, message: permission.data };
               }
@@ -161,34 +150,20 @@ export class AuthService {
             return { status: false, user_id: user_id, message: e };
           }
         } else {
-          return { status: false, user_id: user_id, message: Companyuserrole.message };
+          return { status: false, user_id: user_id, message: SuperAdminrole.message };
         }
+        
         // Create Role for the Employee
         const Employee_role = {
           entity_id: company_id,
           role: UserType.Employee,
         }
-        const Employeeuserrole = await this.roleService.addRole(Employee_role, user_id, transactionSession);
+        const Employeeuserrole = await this.roleservice.addRole(Employee_role, user_id, transactionSession);
         if (Employeeuserrole.status === true) {
-          const permissions = [
-            { role_id: Employeeuserrole.data, module: ModuleType.Company, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Complaint, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Customer, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Employee, permission: PermissionType.Edit },
-            { role_id: Employeeuserrole.data, module: ModuleType.Item, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Model, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Product, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Purchase, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Rating, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Review, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.ServiceCenter, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Store, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Task, permission: PermissionType.View },
-            { role_id: Employeeuserrole.data, module: ModuleType.Warranty, permission: PermissionType.View }
-          ];
+          var permissions = await this.roleservice.employee_permissions();
           try {
             for (let i = 0; i < permissions.length; i++) {
-              const permission = await this.roleService.addPermission(permissions[i], user_id, transactionSession);
+              const permission = await this.roleservice.addPermission(permissions[i], user_id, transactionSession);
               if (permission.status === false) {
                 return { status: false, user_id: user_id, message: permission.data };
               }
@@ -215,7 +190,7 @@ export class AuthService {
 
   // User Signup API
   async signUp(signUpDto: SignUpDto, session: mongoose.ClientSession | null = null) {
-    const existingUser = await this.userService.queryUser({
+    const existingUser = await this.userservice.queryUser({
       $or: [
         { email: signUpDto.email },
         { phone_number: signUpDto.phone_number },
@@ -233,7 +208,7 @@ export class AuthService {
       }
     }
     // Create User Id
-    const user_id = await this.autoIncrementService.getNextSequence(
+    const user_id = await this.autoIncrementservice.getNextSequence(
       AutoIncrementEnum.USER,
       session,
     );
@@ -246,11 +221,11 @@ export class AuthService {
     user.password = await AppUtils.getEncryptedPassword(
       signUpDto.password ? signUpDto.password : signUpDto.phone_number,
     );
-    (user.is2FaEnabled = false),
-      (user.otp = ''),
-      (user.otpExpiry = ''),
-      (user.last_login_date = ''),
-      (user.created_at = AppUtils.getIsoUtcMoment());
+    user.is2FaEnabled = false,
+    user.otp = AppUtils.generateOtp();
+    user.otpExpiry = AppUtils.getExpiryDate();
+    user.last_login_date = '',
+    user.created_at = AppUtils.getIsoUtcMoment();
     user.updated_at = AppUtils.getIsoUtcMoment();
     user.created_by = user_id;
     user.updated_by = user_id;
@@ -298,7 +273,7 @@ export class AuthService {
     ])
 
     return {
-      access_token: this.jwtService.sign({
+      access_token: this.jwtservice.sign({
         sub: user_id,
         user_id,
         email,
@@ -315,22 +290,22 @@ export class AuthService {
   }
 
   async sendOtp(user: User) {
-    return this.userService.sendOtp(user.user_id);
+    return this.userservice.sendOtp(user.user_id);
   }
 
   async verifyOtp(user: User, otp: string) {
-    return this.userService.verifyOtp(user.user_id, otp);
+    return this.userservice.verifyOtp(user.user_id, otp);
   }
 
   async changePassword(user: User, changePasswordDto: ChangePasswordDto) {
-    return this.userService.changePassword(
+    return this.userservice.changePassword(
       user.user_id,
       changePasswordDto.password,
     );
   }
 
   async validateUser(username: string, password: string) {
-    const findUser = await this.userService.queryUser({ email: username });
+    const findUser = await this.userservice.queryUser({ email: username });
     if (!findUser) {
       throw new UnauthorizedException('Invalid username or password');
     }
@@ -339,16 +314,6 @@ export class AuthService {
       throw new UnauthorizedException('Invalid username or password');
     }
     return findUser;
-  }
-
-  async userrollback(rollbackpoint: string) {
-    if (rollbackpoint == 'user') {
-      // Rollback User Id
-      await this.autoIncrementService.getprevious(AutoIncrementEnum.USER);
-      return;
-    } else {
-      return;
-    }
   }
 
 }

@@ -4,20 +4,32 @@ import {
     NotFoundException,
     UnauthorizedException,
 } from '@nestjs/common';
+
+// mongoose
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { InjectConnection } from '@nestjs/mongoose';
-import { AppConstant } from '../../utils/app.constants';
-import { AppUtils } from '../../utils/app.utils';
+import * as mongoose from 'mongoose';
+
+// Schemas
 import { Role, RoleDocument } from './schemas/role.schema';
 import { Permission, PermissionDocument } from './schemas/permission.schema';
-import { AutoIncrementService } from '../auto-increment/auto-increment.service';
-import { AutoIncrementEnum } from '../auto-increment/auto-increment.enum';
+import { User } from '../users/schemas/user.schema';
+
+// Dto
 import { RoleDto } from './dto/role.dto';
 import { PermissionDto } from './dto/permission.dto';
-import { User } from '../users/schemas/user.schema';
+
+// Enum
+import { AutoIncrementEnum } from '../auto-increment/auto-increment.enum';
 import { UserType } from 'src/enums/user-type.enum';
-import * as mongoose from 'mongoose';
+
+// Services
+import { AutoIncrementService } from '../auto-increment/auto-increment.service';
+
+import { AppUtils } from '../../utils/app.utils';
+import { ModuleType } from 'src/enums/module-type.enum';
+import { PermissionType } from 'src/enums/permission.enum';
 
 @Injectable()
 export class RoleService {
@@ -151,32 +163,33 @@ export class RoleService {
 
     // Add Permission
     async addPermission(
-        permissionDto: PermissionDto,
+        permissions: any[],
+        role_id: string,
         user_id: string,
         session: mongoose.ClientSession | null = null
     ) {
         // Check for Permission
         const permissioncheck = await this.permissionModel
-            .findOne({ permission: permissionDto.permission, role_id: permissionDto.role_id, module: permissionDto.module, status: 1 })
+            .findOne({ module_permissions: permissions, role_id: role_id, status: 1 })
             .exec();
         if (permissioncheck) {
-            throw new BadRequestException('Permission already exists');
+            throw new BadRequestException('Permissions already exists');
         }
         // Create Permission Id
         const permission_id = await this.autoIncrementService.getNextSequence(
             AutoIncrementEnum.PERMISSION,
+            session
         );
         const permission = new Permission();
         permission.permission_id = permission_id;
-        permission.role_id = permissionDto.role_id;
-        permission.module = permissionDto.module;
-        permission.permission = permissionDto.permission;
+        permission.role_id = role_id;
+        permission.module_permissions = permissions;
         permission.created_at = AppUtils.getIsoUtcMoment();
         permission.updated_at = AppUtils.getIsoUtcMoment();
         permission.created_by = user_id;
         permission.updated_by = user_id;
         try {
-            await this.permissionModel.create([permission], {session});
+            await this.permissionModel.create([permission], { session });
             return { status: true, data: 'success' };
         } catch (e) {
             await this.autoIncrementService.getprevious(AutoIncrementEnum.PERMISSION);
@@ -216,14 +229,14 @@ export class RoleService {
     // Update Permission by Id
     async updatePermission(
         permission_id: string,
-        permissionDto: PermissionDto,
+        permissions: any[],
         loggedInUser: User,
     ) {
         const permission = await this.permissionModel.findOne({ permission_id }).exec();
         if (!permission) {
             throw new NotFoundException('Permission not found');
         }
-        permission.permission = permissionDto.permission;
+        permission.module_permissions = permissions;
         permission.updated_at = AppUtils.getIsoUtcMoment();
         permission.updated_by = loggedInUser.user_id;
         return this.permissionModel.updateOne({ permission_id }, permission);
@@ -248,5 +261,101 @@ export class RoleService {
         await this.permissionModel.updateOne({ permission_id }, { status: 1 });
         return;
     }
+
+        // GET Super Admin Permissions
+        async superAdmin_permissions() {
+            const permissions = [
+                {
+                    module: ModuleType.User,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.VIEW, PermissionType.DELETE]
+                },
+                {
+                    module: ModuleType.Company,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.College,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Course,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Employee,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Student,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.ProblemStatement,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Announcement,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Subscription,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Role,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+            ];
+    
+            return permissions;
+        }
+
+        // GET Employee Permissions
+        async employee_permissions() {
+            const permissions = [
+                {
+                    module: ModuleType.User,
+                    permissions: [PermissionType.CREATE, PermissionType.VIEW,]
+                },
+                {
+                    module: ModuleType.Company,
+                    permissions: [PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.College,
+                    permissions: [PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Course,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Employee,
+                    permissions: [PermissionType.CREATE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Student,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.ProblemStatement,
+                    permissions: [PermissionType.CREATE, PermissionType.UPDATE, PermissionType.DELETE, PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Announcement,
+                    permissions: [PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Subscription,
+                    permissions: [PermissionType.VIEW],
+                },
+                {
+                    module: ModuleType.Role,
+                    permissions: [PermissionType.VIEW],
+                },
+            ];
+    
+            return permissions;
+        }
 
 }

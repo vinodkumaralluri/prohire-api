@@ -1,5 +1,7 @@
 export enum PermissionType {
-    View = 'view',
-    Edit = 'edit',
-    NoAccess = 'noaccess',
+    CREATE = "Create",
+    UPDATE = "Update",
+    VIEW = "View",
+    DELETE = "Delete",
+    NoAccess = 'NoAccess',
 }

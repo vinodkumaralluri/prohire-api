@@ -4,15 +4,26 @@ import {
     NotFoundException,
     UnauthorizedException,
 } from '@nestjs/common';
+
+// mongoose
 import { InjectModel } from '@nestjs/mongoose';
 import { InjectConnection } from '@nestjs/mongoose';
 import * as mongoose from 'mongoose';
 import { Model } from 'mongoose';
-import { AppUtils } from '../../utils/app.utils';
+
+// Schemas
 import { Course, CourseDocument } from './schemas/course.schema';
-import { AutoIncrementService } from '../auto-increment/auto-increment.service';
-import { AutoIncrementEnum } from '../auto-increment/auto-increment.enum';
+
+// Dto
 import { CourseDto } from './dto/course.dto';
+
+// Enum
+import { AutoIncrementEnum } from '../auto-increment/auto-increment.enum';
+
+// Service
+import { AutoIncrementService } from '../auto-increment/auto-increment.service';
+
+import { AppUtils } from '../../utils/app.utils';
 
 @Injectable()
 export class CourseService {
